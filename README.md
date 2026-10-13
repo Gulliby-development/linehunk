@@ -31,11 +31,11 @@ The project has no runtime dependencies beyond the Java standard library.
 ## Usage
 
 ```text
-linehunk diff [-U N] [--jobs N] A B
+linehunk diff [-U N] [--jobs N] [--stat] A B
 linehunk apply [-R] [--check] PATCH DIR
 ```
 
-Options may appear among operands. `-U N` selects a context size from 0 through 99 (default 3); `--jobs N` selects 1 through 8 workers for directory diffs (default 4). The last occurrence of a repeated option takes effect. Use `--help` by itself for the two-line usage message.
+Options may appear among operands. `-U N` selects a context size from 0 through 99 (default 3); `--jobs N` selects 1 through 8 workers for directory diffs (default 4). `--stat` (diff only) prints a per-file summary instead of the diff. The last occurrence of a repeated option takes effect. Use `--help` by itself for the two-line usage message.
 
 A JDK 21 can also launch the source directly for a quick help check:
 
@@ -46,7 +46,7 @@ java --source 21 src/main/java/io/github/gulliby/linehunk/cli/Main.java --help
 It prints:
 
 ```text
-Usage: linehunk diff [-U N] [--jobs N] A B
+Usage: linehunk diff [-U N] [--jobs N] [--stat] A B
        linehunk apply [-R] [--check] PATCH DIR
 ```
 
@@ -129,6 +129,30 @@ created new/sub.txt
 ```
 
 The result matches tree B. Applying the same patch again fails at the first mismatching hunk. Applying it in reverse restores tree A.
+
+### Summary with --stat
+
+For the file example above, run:
+
+```text
+linehunk diff --stat a.txt b.txt
+b.txt | +2 -1
+1 file changed, +2 -1
+```
+
+For the directory example above:
+
+```text
+linehunk diff --stat A B
+edit.txt       | +1 -1
+empty-gone.txt | +0 -0
+gone.txt       | +0 -2
+new/empty.txt  | +0 -0
+new/sub.txt    | +2 -0
+5 files changed, +3 -3
+```
+
+Each row reports `+N` added lines and `-M` removed lines. In tree diffs, names are relative paths without the `a/` or `b/` prefix; in file diffs, the name is the second operand. The final line totals the changed files and line counts. Diff exit codes remain 0 for no differences, 1 for differences, and 2 for an error. `--stat` is a diff option, not an option of `apply`.
 
 ## The algorithm in plain words
 

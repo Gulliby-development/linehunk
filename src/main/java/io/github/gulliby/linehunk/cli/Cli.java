@@ -15,13 +15,16 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /** Argument handling and command dispatch for linehunk. */
 public final class Cli {
     public static final String HELP_TEXT =
-            "Usage: linehunk diff [-U N] [--jobs N] A B\n"
+            "Usage: linehunk diff [-U N] [--jobs N] [--stat] A B\n"
                     + "       linehunk apply [-R] [--check] PATCH DIR\n";
 
+    private static final Pattern HUNK_HEADER = Pattern.compile("^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@$");
     private static final CommandHandler DEFAULT_COMMAND_HANDLER = new BuiltInCommandHandler();
     private static volatile CommandHandler commandHandler = DEFAULT_COMMAND_HANDLER;
 
@@ -83,7 +86,15 @@ public final class Cli {
             }
             bufferedOut.flush();
             if (status != 2) {
-                out.print(commandOutput.toString(StandardCharsets.UTF_8));
+                if ("diff".equals(command) && parsed.stat) {
+                    if (status == 1) {
+                        boolean treeDiff = Files.isDirectory(Path.of(parsed.operands.get(0)));
+                        out.print(renderStat(commandOutput.toString(StandardCharsets.UTF_8),
+                                treeDiff, parsed.operands.get(1)));
+                    }
+                } else {
+                    out.print(commandOutput.toString(StandardCharsets.UTF_8));
+                }
             }
             return status;
         } catch (RuntimeException ex) {
@@ -171,6 +182,7 @@ public final class Cli {
         int jobs = 4;
         boolean reverse = false;
         boolean check = false;
+        boolean stat = false;
         List<String> operands = new ArrayList<>();
 
         for (int i = 1; i < args.length; i++) {
@@ -197,6 +209,8 @@ public final class Cli {
                         return Parsed.failure("invalid jobs \"" + value + "\"");
                     }
                 }
+            } else if ("diff".equals(command) && "--stat".equals(arg)) {
+                stat = true;
             } else if ("apply".equals(command) && ("-R".equals(arg) || "--check".equals(arg))) {
                 if ("-R".equals(arg)) {
                     reverse = true;
@@ -215,7 +229,98 @@ public final class Cli {
             return Parsed.failure("exactly two " + ("diff".equals(command) ? "paths" : "arguments")
                     + " required");
         }
-        return new Parsed(operands, context, jobs, reverse, check, null);
+        return new Parsed(operands, context, jobs, reverse, check, stat, null);
+    }
+
+    private static String renderStat(String diff, boolean treeDiff, String secondOperand) {
+        String[] lines = diff.split("\\n", -1);
+        List<StatRow> rows = new ArrayList<>();
+        int index = 0;
+        int totalAdded = 0;
+        int totalRemoved = 0;
+        int widestName = 0;
+
+        while (index + 1 < lines.length) {
+            if (!lines[index].startsWith("--- ") || !lines[index + 1].startsWith("+++ ")) {
+                index++;
+                continue;
+            }
+
+            String oldHeader = lines[index].substring(4);
+            String newHeader = lines[index + 1].substring(4);
+            index += 2;
+            int added = 0;
+            int removed = 0;
+
+            while (index < lines.length) {
+                if (index + 1 < lines.length && lines[index].startsWith("--- ")
+                        && lines[index + 1].startsWith("+++ ")) {
+                    break;
+                }
+                Matcher hunk = HUNK_HEADER.matcher(lines[index]);
+                if (!hunk.matches()) {
+                    index++;
+                    continue;
+                }
+
+                int oldRemaining = hunk.group(2) == null ? 1 : Integer.parseInt(hunk.group(2));
+                int newRemaining = hunk.group(4) == null ? 1 : Integer.parseInt(hunk.group(4));
+                index++;
+                while (index < lines.length && (oldRemaining > 0 || newRemaining > 0)) {
+                    String content = lines[index++];
+                    if (content.isEmpty()) {
+                        break;
+                    }
+                    switch (content.charAt(0)) {
+                        case ' ' -> {
+                            oldRemaining--;
+                            newRemaining--;
+                        }
+                        case '-' -> {
+                            oldRemaining--;
+                            removed++;
+                        }
+                        case '+' -> {
+                            newRemaining--;
+                            added++;
+                        }
+                        default -> {
+                            oldRemaining = 0;
+                            newRemaining = 0;
+                        }
+                    }
+                }
+            }
+
+            String name = treeDiff
+                    ? treeName(oldHeader, newHeader)
+                    : secondOperand;
+            rows.add(new StatRow(name, added, removed));
+            widestName = Math.max(widestName, name.length());
+            totalAdded += added;
+            totalRemoved += removed;
+        }
+
+        StringBuilder summary = new StringBuilder();
+        for (StatRow row : rows) {
+            summary.append(row.name());
+            summary.append(" ".repeat(widestName - row.name().length()));
+            summary.append(" | +").append(row.added()).append(" -").append(row.removed()).append('\n');
+        }
+        summary.append(rows.size()).append(rows.size() == 1 ? " file changed, +" : " files changed, +")
+                .append(totalAdded).append(" -").append(totalRemoved).append('\n');
+        return summary.toString();
+    }
+
+    private static String treeName(String oldHeader, String newHeader) {
+        String path = "/dev/null".equals(newHeader) ? oldHeader : newHeader;
+        if (path.startsWith("a/") || path.startsWith("b/")) {
+            return path.substring(2);
+        }
+        return path;
+    }
+
+    private record StatRow(String name, int added, int removed) {
     }
 
     private static boolean isAsciiDigits(String value, int minLength, int maxLength) {
@@ -286,20 +391,22 @@ public final class Cli {
         private final int jobs;
         private final boolean reverse;
         private final boolean check;
+        private final boolean stat;
         private final String error;
 
         private Parsed(List<String> operands, int context, int jobs,
-                       boolean reverse, boolean check, String error) {
+                       boolean reverse, boolean check, boolean stat, String error) {
             this.operands = operands;
             this.context = context;
             this.jobs = jobs;
             this.reverse = reverse;
             this.check = check;
+            this.stat = stat;
             this.error = error;
         }
 
         private static Parsed failure(String error) {
-            return new Parsed(List.of(), 3, 4, false, false, error);
+            return new Parsed(List.of(), 3, 4, false, false, false, error);
         }
     }
 }
