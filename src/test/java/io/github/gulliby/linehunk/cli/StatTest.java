@@ -214,7 +214,7 @@ class StatTest {
         String readme = Files.readString(Path.of("README.md"), StandardCharsets.UTF_8)
                 .replace("\r\n", "\n");
 
-        assertTrue(readme.contains("linehunk diff [-U N] [--jobs N] [--stat] A B"));
+        assertTrue(readme.contains("linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B"));
         assertTrue(readme.contains("### Summary with --stat"));
         assertTrue(readme.contains("b.txt | +2 -1\n1 file changed, +2 -1\n"));
         assertTrue(readme.contains("edit.txt       | +1 -1\n"
