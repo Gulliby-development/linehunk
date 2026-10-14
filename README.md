@@ -31,11 +31,11 @@ The project has no runtime dependencies beyond the Java standard library.
 ## Usage
 
 ```text
-linehunk diff [-U N] [--jobs N] [--stat] A B
+linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B
 linehunk apply [-R] [--check] PATCH DIR
 ```
 
-Options may appear among operands. `-U N` selects a context size from 0 through 99 (default 3); `--jobs N` selects 1 through 8 workers for directory diffs (default 4). `--stat` (diff only) prints a per-file summary instead of the diff. The last occurrence of a repeated option takes effect. Use `--help` by itself for the two-line usage message.
+Options may appear among operands. `-U N` selects a context size from 0 through 99 (default 3); `--jobs N` selects 1 through 8 workers for directory diffs (default 4). `--stat` (diff only) prints a per-file summary instead of the diff. `--name-only` (diff only) prints only the names of the changed files instead of the diff; it cannot be combined with `--stat`. The last occurrence of a repeated option takes effect. Use `--help` by itself for the two-line usage message.
 
 A JDK 21 can also launch the source directly for a quick help check:
 
@@ -46,7 +46,7 @@ java --source 21 src/main/java/io/github/gulliby/linehunk/cli/Main.java --help
 It prints:
 
 ```text
-Usage: linehunk diff [-U N] [--jobs N] [--stat] A B
+Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B
        linehunk apply [-R] [--check] PATCH DIR
 ```
 
@@ -153,6 +153,20 @@ new/sub.txt    | +2 -0
 ```
 
 Each row reports `+N` added lines and `-M` removed lines. In tree diffs, names are relative paths without the `a/` or `b/` prefix; in file diffs, the name is the second operand. The final line totals the changed files and line counts. Diff exit codes remain 0 for no differences, 1 for differences, and 2 for an error. `--stat` is a diff option, not an option of `apply`.
+
+### Names only with --name-only
+
+To get just the list of changed files, for example to feed another command, run `linehunk diff --name-only A B`. It prints one name per line, the same names that `--stat` shows (the second operand for a file diff, sorted relative paths without the `a/` or `b/` prefix for a tree diff), and no totals line. For the directory example above:
+
+```text
+edit.txt
+empty-gone.txt
+gone.txt
+new/empty.txt
+new/sub.txt
+```
+
+The exit codes are those of a normal diff (0 for no differences, in which case nothing is printed, 1 for differences, 2 for an error). `--name-only` is a diff option, not an option of `apply`, and combining it with `--stat` is an error (`linehunk: --stat and --name-only cannot be combined`, exit code 2).
 
 ## The algorithm in plain words
 

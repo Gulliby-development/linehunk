@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 /** Argument handling and command dispatch for linehunk. */
 public final class Cli {
     public static final String HELP_TEXT =
-            "Usage: linehunk diff [-U N] [--jobs N] [--stat] A B\n"
+            "Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B\n"
                     + "       linehunk apply [-R] [--check] PATCH DIR\n";
 
     private static final Pattern HUNK_HEADER = Pattern.compile("^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@$");
@@ -86,11 +86,13 @@ public final class Cli {
             }
             bufferedOut.flush();
             if (status != 2) {
-                if ("diff".equals(command) && parsed.stat) {
+                if ("diff".equals(command) && (parsed.stat || parsed.nameOnly)) {
                     if (status == 1) {
                         boolean treeDiff = Files.isDirectory(Path.of(parsed.operands.get(0)));
-                        out.print(renderStat(commandOutput.toString(StandardCharsets.UTF_8),
-                                treeDiff, parsed.operands.get(1)));
+                        String diff = commandOutput.toString(StandardCharsets.UTF_8);
+                          out.print(parsed.nameOnly
+                                  ? renderNames(diff, treeDiff, parsed.operands.get(1))
+                                  : renderStat(diff, treeDiff, parsed.operands.get(1)));
                     }
                 } else {
                     out.print(commandOutput.toString(StandardCharsets.UTF_8));
@@ -183,6 +185,7 @@ public final class Cli {
         boolean reverse = false;
         boolean check = false;
         boolean stat = false;
+        boolean nameOnly = false;
         List<String> operands = new ArrayList<>();
 
         for (int i = 1; i < args.length; i++) {
@@ -211,6 +214,8 @@ public final class Cli {
                 }
             } else if ("diff".equals(command) && "--stat".equals(arg)) {
                 stat = true;
+            } else if ("diff".equals(command) && "--name-only".equals(arg)) {
+                nameOnly = true;
             } else if ("apply".equals(command) && ("-R".equals(arg) || "--check".equals(arg))) {
                 if ("-R".equals(arg)) {
                     reverse = true;
@@ -224,21 +229,52 @@ public final class Cli {
             }
         }
 
+        if (stat && nameOnly) {
+              return Parsed.failure("--stat and --name-only cannot be combined");
+        }
+
         int expected = 2;
         if (operands.size() != expected) {
             return Parsed.failure("exactly two " + ("diff".equals(command) ? "paths" : "arguments")
                     + " required");
         }
-        return new Parsed(operands, context, jobs, reverse, check, stat, null);
+        return new Parsed(operands, context, jobs, reverse, check, stat, nameOnly, null);
     }
 
     private static String renderStat(String diff, boolean treeDiff, String secondOperand) {
-        String[] lines = diff.split("\\n", -1);
-        List<StatRow> rows = new ArrayList<>();
-        int index = 0;
+        List<StatRow> rows = readStatRows(diff, treeDiff, secondOperand);
         int totalAdded = 0;
         int totalRemoved = 0;
         int widestName = 0;
+        for (StatRow row : rows) {
+            widestName = Math.max(widestName, row.name().length());
+            totalAdded += row.added();
+            totalRemoved += row.removed();
+        }
+
+        StringBuilder summary = new StringBuilder();
+        for (StatRow row : rows) {
+            summary.append(row.name());
+            summary.append(" ".repeat(widestName - row.name().length()));
+            summary.append(" | +").append(row.added()).append(" -").append(row.removed()).append('\n');
+        }
+        summary.append(rows.size()).append(rows.size() == 1 ? " file changed, +" : " files changed, +")
+                .append(totalAdded).append(" -").append(totalRemoved).append('\n');
+        return summary.toString();
+    }
+
+    private static String renderNames(String diff, boolean treeDiff, String secondOperand) {
+        StringBuilder names = new StringBuilder();
+        for (StatRow row : readStatRows(diff, treeDiff, secondOperand)) {
+            names.append(row.name()).append('\n');
+        }
+        return names.toString();
+    }
+
+    private static List<StatRow> readStatRows(String diff, boolean treeDiff, String secondOperand) {
+        String[] lines = diff.split("\\n", -1);
+        List<StatRow> rows = new ArrayList<>();
+        int index = 0;
 
         while (index + 1 < lines.length) {
             if (!lines[index].startsWith("--- ") || !lines[index + 1].startsWith("+++ ")) {
@@ -296,20 +332,8 @@ public final class Cli {
                     ? treeName(oldHeader, newHeader)
                     : secondOperand;
             rows.add(new StatRow(name, added, removed));
-            widestName = Math.max(widestName, name.length());
-            totalAdded += added;
-            totalRemoved += removed;
         }
-
-        StringBuilder summary = new StringBuilder();
-        for (StatRow row : rows) {
-            summary.append(row.name());
-            summary.append(" ".repeat(widestName - row.name().length()));
-            summary.append(" | +").append(row.added()).append(" -").append(row.removed()).append('\n');
-        }
-        summary.append(rows.size()).append(rows.size() == 1 ? " file changed, +" : " files changed, +")
-                .append(totalAdded).append(" -").append(totalRemoved).append('\n');
-        return summary.toString();
+        return rows;
     }
 
     private static String treeName(String oldHeader, String newHeader) {
@@ -392,21 +416,23 @@ public final class Cli {
         private final boolean reverse;
         private final boolean check;
         private final boolean stat;
+        private final boolean nameOnly;
         private final String error;
 
-        private Parsed(List<String> operands, int context, int jobs,
-                       boolean reverse, boolean check, boolean stat, String error) {
+          private Parsed(List<String> operands, int context, int jobs,
+                       boolean reverse, boolean check, boolean stat, boolean nameOnly, String error) {
             this.operands = operands;
             this.context = context;
             this.jobs = jobs;
             this.reverse = reverse;
             this.check = check;
             this.stat = stat;
+            this.nameOnly = nameOnly;
             this.error = error;
         }
 
         private static Parsed failure(String error) {
-            return new Parsed(List.of(), 3, 4, false, false, false, error);
+            return new Parsed(List.of(), 3, 4, false, false, false, false, error);
         }
     }
 }
