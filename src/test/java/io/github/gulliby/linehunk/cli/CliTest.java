@@ -133,7 +133,7 @@ class CliTest {
     void helpAndUsageErrorsHaveExactStreamsAndStatuses() {
         Invocation help = run("--help");
         assertEquals(0, help.status());
-        assertEquals("Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B\n"
+        assertEquals("Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B\n"
                 + "       linehunk apply [-R] [--check] PATCH DIR\n", help.stdout());
         assertEquals("", help.stderr());
 

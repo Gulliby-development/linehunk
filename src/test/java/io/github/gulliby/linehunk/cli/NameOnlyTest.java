@@ -219,8 +219,8 @@ class NameOnlyTest {
         String tick = Character.toString(96);
         String fence = tick.repeat(3);
 
-        assertTrue(readme.contains("linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B"));
-        assertTrue(readme.contains("Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B"));
+        assertTrue(readme.contains("linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B"));
+        assertTrue(readme.contains("Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B"));
         assertTrue(readme.contains(tick + "--name-only" + tick + " (diff only) prints only the names of the "
                 + "changed files instead of the diff; it cannot be combined with "
                 + tick + "--stat" + tick + "."));

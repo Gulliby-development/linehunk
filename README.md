@@ -31,11 +31,11 @@ The project has no runtime dependencies beyond the Java standard library.
 ## Usage
 
 ```text
-linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B
+linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B
 linehunk apply [-R] [--check] PATCH DIR
 ```
 
-Options may appear among operands. `-U N` selects a context size from 0 through 99 (default 3); `--jobs N` selects 1 through 8 workers for directory diffs (default 4). `--stat` (diff only) prints a per-file summary instead of the diff. `--name-only` (diff only) prints only the names of the changed files instead of the diff; it cannot be combined with `--stat`. The last occurrence of a repeated option takes effect. Use `--help` by itself for the two-line usage message.
+Options may appear among operands. `-U N` selects a context size from 0 through 99 (default 3); `--jobs N` selects 1 through 8 workers for directory diffs (default 4). `--stat` (diff only) prints a per-file summary instead of the diff. `--name-only` (diff only) prints only the names of the changed files instead of the diff; it cannot be combined with `--stat`. The last occurrence of a repeated option takes effect. `-q` or `--quiet` (diff only) prints nothing at all and reports the result in the exit code; it cannot be combined with `--stat` or `--name-only`. Use `--help` by itself for the two-line usage message.
 
 A JDK 21 can also launch the source directly for a quick help check:
 
@@ -46,7 +46,7 @@ java --source 21 src/main/java/io/github/gulliby/linehunk/cli/Main.java --help
 It prints:
 
 ```text
-Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B
+Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B
        linehunk apply [-R] [--check] PATCH DIR
 ```
 

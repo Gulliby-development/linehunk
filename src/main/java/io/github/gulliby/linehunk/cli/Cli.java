@@ -21,7 +21,7 @@ import java.util.regex.Pattern;
 /** Argument handling and command dispatch for linehunk. */
 public final class Cli {
     public static final String HELP_TEXT =
-            "Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only] A B\n"
+            "Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B\n"
                     + "       linehunk apply [-R] [--check] PATCH DIR\n";
 
     private static final Pattern HUNK_HEADER = Pattern.compile("^@@ -(\\d+)(?:,(\\d+))? \\+(\\d+)(?:,(\\d+))? @@$");
@@ -85,7 +85,7 @@ public final class Cli {
                         parsed.reverse, parsed.check, bufferedOut, err);
             }
             bufferedOut.flush();
-            if (status != 2) {
+            if (status != 2 && !parsed.quiet) {
                 if ("diff".equals(command) && (parsed.stat || parsed.nameOnly)) {
                     if (status == 1) {
                         boolean treeDiff = Files.isDirectory(Path.of(parsed.operands.get(0)));
@@ -186,6 +186,7 @@ public final class Cli {
         boolean check = false;
         boolean stat = false;
         boolean nameOnly = false;
+        boolean quiet = false;
         List<String> operands = new ArrayList<>();
 
         for (int i = 1; i < args.length; i++) {
@@ -216,6 +217,8 @@ public final class Cli {
                 stat = true;
             } else if ("diff".equals(command) && "--name-only".equals(arg)) {
                 nameOnly = true;
+              } else if ("diff".equals(command) && ("-q".equals(arg) || "--quiet".equals(arg))) {
+                quiet = true;
             } else if ("apply".equals(command) && ("-R".equals(arg) || "--check".equals(arg))) {
                 if ("-R".equals(arg)) {
                     reverse = true;
@@ -232,13 +235,16 @@ public final class Cli {
         if (stat && nameOnly) {
               return Parsed.failure("--stat and --name-only cannot be combined");
         }
-
+          if (quiet && (stat || nameOnly)) {
+              return Parsed.failure("--quiet cannot be combined with --stat or --name-only");
+        }
+  
         int expected = 2;
         if (operands.size() != expected) {
             return Parsed.failure("exactly two " + ("diff".equals(command) ? "paths" : "arguments")
                     + " required");
         }
-        return new Parsed(operands, context, jobs, reverse, check, stat, nameOnly, null);
+        return new Parsed(operands, context, jobs, reverse, check, stat, nameOnly, quiet, null);
     }
 
     private static String renderStat(String diff, boolean treeDiff, String secondOperand) {
@@ -417,10 +423,12 @@ public final class Cli {
         private final boolean check;
         private final boolean stat;
         private final boolean nameOnly;
+        private final boolean quiet;
         private final String error;
-
+  
           private Parsed(List<String> operands, int context, int jobs,
-                       boolean reverse, boolean check, boolean stat, boolean nameOnly, String error) {
+                       boolean reverse, boolean check, boolean stat, boolean nameOnly,
+                       boolean quiet, String error) {
             this.operands = operands;
             this.context = context;
             this.jobs = jobs;
@@ -428,11 +436,12 @@ public final class Cli {
             this.check = check;
             this.stat = stat;
             this.nameOnly = nameOnly;
+            this.quiet = quiet;
             this.error = error;
         }
 
         private static Parsed failure(String error) {
-            return new Parsed(List.of(), 3, 4, false, false, false, false, error);
+            return new Parsed(List.of(), 3, 4, false, false, false, false, false, error);
         }
     }
 }
