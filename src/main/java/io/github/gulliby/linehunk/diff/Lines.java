@@ -1,6 +1,7 @@
 package io.github.gulliby.linehunk.diff;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteBuffer;
 import java.nio.charset.CharacterCodingException;
 import java.nio.charset.CodingErrorAction;
@@ -22,6 +23,12 @@ public final class Lines {
     /** Reads a regular input file using the ordinary-file line limit. */
     public static List<String> read(Path path) throws IOException {
         return read(path, DEFAULT_LIMIT);
+    }
+
+    /** Reads all bytes of a stream using the supplied maximum number of logical lines. */
+    public static List<String> read(InputStream in, int maxLines) throws IOException {
+        Objects.requireNonNull(in, "in");
+        return decode(in.readAllBytes(), maxLines);
     }
 
     /** Reads a file using the supplied maximum number of logical lines. */
