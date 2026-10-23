@@ -3,6 +3,7 @@ package io.github.gulliby.linehunk.patch;
 import io.github.gulliby.linehunk.diff.Lines;
 
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -94,8 +95,27 @@ public final class Applier {
             boolean check,
             PrintStream out,
             PrintStream err) {
+        return run(patchArgument, directoryArgument, reverse, check, System.in, out, err);
+    }
+
+    /**
+     * Like {@link #run(String, String, boolean, boolean, PrintStream, PrintStream)}, reading the
+     * patch from {@code in} when the patch argument is {@code -}; messages then name it
+     * {@code <stdin>}.
+     */
+    public static int run(
+            String patchArgument,
+            String directoryArgument,
+            boolean reverse,
+            boolean check,
+            InputStream in,
+            PrintStream out,
+            PrintStream err) {
+        Objects.requireNonNull(in, "in");
         Objects.requireNonNull(out, "out");
         Objects.requireNonNull(err, "err");
+        final boolean fromStdin = "-".equals(patchArgument);
+        final String patchLabel = fromStdin ? "<stdin>" : patchArgument;
 
         final Path directory;
         try {
@@ -107,27 +127,26 @@ public final class Applier {
             return reportError(err, directoryArgument + ": not a directory");
         }
 
-        final Path patchPath;
-        try {
-            patchPath = Path.of(patchArgument);
-        } catch (InvalidPathException ex) {
-            return reportError(err, patchArgument + ": cannot read");
-        }
-
         final List<String> patchLines;
         try {
-            patchLines = Lines.read(patchPath, Lines.PATCH_LIMIT);
+            if (fromStdin) {
+                patchLines = Lines.read(in, Lines.PATCH_LIMIT);
+            } else {
+                patchLines = Lines.read(Path.of(patchArgument), Lines.PATCH_LIMIT);
+            }
+        } catch (InvalidPathException ex) {
+            return reportError(err, patchLabel + ": cannot read");
         } catch (Lines.ReadException ex) {
-            return reportError(err, patchArgument + ": " + readFailure(ex));
+            return reportError(err, patchLabel + ": " + readFailure(ex));
         } catch (IOException | SecurityException ex) {
-            return reportError(err, patchArgument + ": cannot read");
+            return reportError(err, patchLabel + ": cannot read");
         }
 
         final List<FilePatch> sections;
         try {
             sections = PatchParser.parse(patchLines);
         } catch (PatchException ex) {
-            String message = patchArgument + ":";
+            String message = patchLabel + ":";
             if (ex.hasLineNumber()) {
                 message += ex.lineNumber() + ": ";
             } else {

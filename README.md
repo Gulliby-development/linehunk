@@ -52,7 +52,7 @@ Usage: linehunk diff [-U N] [--jobs N] [--stat | --name-only | -q] A B
 
 For file diffs, both operands must be files; for tree diffs, both must be directories. A file diff uses the operand strings in its headers. A tree diff uses sorted relative paths with `a/` and `b/` prefixes. Identical files and trees produce no diff output.
 
-To apply a patch, give its patch file and destination directory. Use `--check` to validate and report the actions without changing files, or `-R` to reverse the patch. A successful apply reports one action per file followed by a file and hunk count.
+To apply a patch, give its patch file and destination directory. Use `--check` to validate and report the actions without changing files, or `-R` to reverse the patch. A successful apply reports one action per file followed by a file and hunk count. Give `-` as the patch file to read the patch from standard input, for example `linehunk diff a b | linehunk apply - dir`; the messages then call it `<stdin>`.
 
 ### File example
 
