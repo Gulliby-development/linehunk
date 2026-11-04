@@ -191,12 +191,12 @@ public final class Cli {
 
         for (int i = 1; i < args.length; i++) {
             String arg = args[i];
-            if ("diff".equals(command) && ("-U".equals(arg) || "--jobs".equals(arg))) {
+            if ("diff".equals(command) && ("-U".equals(arg) || "--unified".equals(arg) || "--jobs".equals(arg))) {
                 if (i + 1 >= args.length) {
                     return Parsed.failure("missing value for " + arg);
                 }
                 String value = args[++i];
-                if ("-U".equals(arg)) {
+                if (!"--jobs".equals(arg)) {
                     if (!isAsciiDigits(value, 1, 2)) {
                         return Parsed.failure("invalid context \"" + value + "\"");
                     }
@@ -213,6 +213,12 @@ public final class Cli {
                         return Parsed.failure("invalid jobs \"" + value + "\"");
                     }
                 }
+            } else if ("diff".equals(command) && arg.startsWith("--unified=")) {
+                String value = arg.substring("--unified=".length());
+                if (!isAsciiDigits(value, 1, 2)) {
+                    return Parsed.failure("invalid context \"" + value + "\"");
+                }
+                context = Integer.parseInt(value);
             } else if ("diff".equals(command) && "--stat".equals(arg)) {
                 stat = true;
             } else if ("diff".equals(command) && "--name-only".equals(arg)) {
